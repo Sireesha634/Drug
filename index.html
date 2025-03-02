@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DTI Visualization</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.22.1/cytoscape.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+        }
+        #cy {
+            width: 90%;
+            height: 500px;
+            margin: 20px auto;
+            border: 2px solid black;
+        }
+        input, button {
+            padding: 10px;
+            margin: 5px;
+        }
+        #drugInfo {
+            margin-top: 20px;
+            padding: 10px;
+            border: 1px solid gray;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+    <h2>Drug-Target Interaction Search</h2>
+    <input type="text" id="drug" placeholder="Enter Drug Name">
+    <button onclick="fetchDrugData()">Search</button>
+
+    <div id="drugInfo"></div>
+
+    <h2>Drug-Target Network</h2>
+    <div id="cy"></div>
+
+    <script>
+        async function fetchDrugData() {
+            const drugName = document.getElementById('drug').value;
+            if (!drugName) return alert("Enter a drug name");
+
+            const response = await fetch(`http://localhost:3000/getDrugData?drug=${drugName}`);
+            const data = await response.json();
+
+            if (data.length === 0) {
+                alert("No data found for the drug");
+                return;
+            }
+
+            // Display Drug Info
+            const drug = data[0];
+            document.getElementById('drugInfo').innerHTML = `
+                <h3>Drug Details</h3>
+                <p><strong>Molecular Weight:</strong> ${drug.molecular_weight}</p>
+                <p><strong>SMILES Format:</strong> ${drug.smiles}</p>
+                <p><strong>Type of Molecule:</strong> ${drug.type_of_molecule}</p>
+                <p><strong>Mechanism of Action:</strong> ${drug.mechanism_of_action}</p>
+            `;
+            document.getElementById('drugInfo').style.display = 'block';
+
+            // Build Cytoscape Graph
+            const cy = cytoscape({
+                container: document.getElementById('cy'),
+                elements: [],
+                style: [
+                    { selector: 'node', style: { 'label': 'data(id)', 'font-size': '14px', 'text-valign': 'center', 'color': '#fff' } },
+                    { selector: 'node[type="drug"]', style: { 'background-color': '#0074D9' } },
+                    { selector: 'node[type="target"]', style: { 'background-color': '#FF4136' } },
+                    { selector: 'edge', style: { 'width': 2, 'line-color': '#2ECC40', 'target-arrow-shape': 'triangle' } }
+                ],
+                layout: { name: 'cose' }
+            });
+
+            cy.add({ group: 'nodes', data: { id: drug.drug, type: 'drug' } });
+
+            data.forEach(({ target_name, binding_affinity, uniprot_id, gene_name }) => {
+                cy.add({ group: 'nodes', data: { id: target_name, type: 'target' } });
+                cy.add({ group: 'edges', data: { source: drug.drug, target: target_name, binding_affinity } });
+            });
+
+            cy.layout({ name: 'cose' }).run();
+        }
+    </script>
+
+</body>
+</html>
